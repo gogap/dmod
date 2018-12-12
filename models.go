@@ -94,10 +94,65 @@ func (p *Models) DeleteModel(name string) bool {
 	return true
 }
 
+func (p *Models) LoadModels(modleSchemas []string) (err error) {
+
+	allModels := map[string]*ModelConfig{}
+
+	for k, v := range p.modelsConfig {
+		copyModel := *v
+		copyModel.reset()
+		allModels[k] = &copyModel
+	}
+
+	for _, schema := range modleSchemas {
+
+		modelConfig := ModelConfig{}
+
+		err = json.Unmarshal([]byte(schema), &modelConfig)
+		if err != nil {
+			return
+		}
+
+		modelConfig.originalFields = modelConfig.Fields
+
+		_, existModel := allModels[modelConfig.Name]
+		if existModel {
+			logrus.WithField("model", modelConfig.Name).Warnln("model already exist")
+		}
+
+		allModels[modelConfig.Name] = &modelConfig
+		logrus.WithField("model", modelConfig.Name).Debug("model loaded")
+	}
+
+	if err != nil {
+		return
+	}
+
+	for _, model := range allModels {
+		for i := 0; i < len(model.Fields); i++ {
+			fieldRefUpdate(allModels, model, &model.Fields[i])
+		}
+	}
+
+	for _, model := range allModels {
+		modelExtendsUpdate(allModels, model)
+	}
+
+	p.modelsConfig = allModels
+
+	for _, model := range allModels {
+		_, err = p.SetModel(*model)
+		if err != nil {
+			return
+		}
+	}
+
+	return
+}
+
 func (p *Models) LoadFromFiles(files ...string) (err error) {
 
 	allModels := map[string]*ModelConfig{}
-	newModels := map[string]*ModelConfig{}
 
 	for k, v := range p.modelsConfig {
 		copyModel := *v
@@ -131,7 +186,6 @@ func (p *Models) LoadFromFiles(files ...string) (err error) {
 			logrus.WithField("model", modelConfig.Name).WithField("file", file).Warnln("model already exist")
 		}
 
-		newModels[modelConfig.Name] = &modelConfig
 		allModels[modelConfig.Name] = &modelConfig
 		logrus.WithField("file", file).WithField("model", modelConfig.Name).Debug("model loaded")
 	}
@@ -246,7 +300,22 @@ func (p *Models) NewModel(config ModelConfig) (model *Model, err error) {
 		return
 	}
 
-	model, err = p.SetModel(config)
+	m, err := p.SetModel(config)
+	if err != nil {
+		return
+	}
+
+	model = m
+
+	for _, model := range p.modelsConfig {
+		for i := 0; i < len(model.Fields); i++ {
+			fieldRefUpdate(p.modelsConfig, model, &model.Fields[i])
+		}
+	}
+
+	for _, model := range p.modelsConfig {
+		modelExtendsUpdate(p.modelsConfig, model)
+	}
 
 	return
 }
