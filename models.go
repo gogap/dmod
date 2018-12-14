@@ -3,13 +3,14 @@ package dmod
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Sirupsen/logrus"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Models struct {
